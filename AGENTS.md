@@ -129,6 +129,22 @@ fight over `models`). Disable the other plugin/layer first.
 - **Tests.** Prefer pure-function tests plus temp-directory tests; inject
   `dataDir` / `fetchEntries` / a fake settings service rather than hitting the
   network or `~/.dsh`.
+- **Releasing.** A tag *is* the release; `main` is the development channel.
+  Day-to-day a profile installs `github:jiaruihuang/dsh-pi-ai-sync`, so every
+  push is live for the author with no version bookkeeping. Publish a version by
+  bumping `version`, moving the changelog's `[Unreleased]` entries into a dated
+  section, updating the two link definitions at the bottom of `CHANGELOG.md`,
+  then `git tag -a vX.Y.Z -m … && git push origin vX.Y.Z`. Consumers pin with
+  `github:jiaruihuang/dsh-pi-ai-sync#vX.Y.Z`.
+
+  `lib/` is deliberately **not** committed and there is no `prepare`-less
+  fallback: a `github:` install runs `prepare` (see `package.json`), which pnpm
+  only allows after the profile lists the stable key
+  `dsh-pi-ai-sync@git+https://github.com/jiaruihuang/dsh-pi-ai-sync.git` under
+  `allowBuilds`. Do not swap that for the commit-pinned codeload key pnpm's own
+  error text suggests — it goes stale on the next push. If installs must work
+  with zero profile config, that is the point to move to a Release tarball or
+  npm (see the roadmap), not to start committing `lib/`.
 
 ## Roadmap / known gaps
 

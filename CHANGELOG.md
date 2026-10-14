@@ -7,16 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- `prepare` script added: a `github:` install runs `prepare`, never
-  `prepublishOnly`, so the package arrived without `lib/` (which is
-  gitignored) and `main: lib/index.js` did not resolve. Profiles installing
-  from GitHub must allow the build script in `pnpm-workspace.yaml`
-  (`allowBuilds`); on pnpm ≥ 11.21 the stable key
-  `dsh-pi-ai-sync@git+https://github.com/jiaruihuang/dsh-pi-ai-sync.git`
-  survives later pushes, the commit-pinned codeload key does not.
-
 ## [0.1.0] - 2026-10-14
 
 ### Added
@@ -41,6 +31,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Uninstall restore: catalog backups are rolled back only when no profile still
   references the package, and never over a file a pi-ai upgrade wholly replaced.
 - 29 unit tests (`node:test`) and a host-free smoke boot.
+
+### Fixed
+
+- `prepare` script added before the first release: a `github:` install runs
+  `prepare`, never `prepublishOnly`, so the package arrived without `lib/`
+  (which is gitignored) and `main: lib/index.js` did not resolve. Profiles
+  installing from GitHub must allow the build script in `pnpm-workspace.yaml`
+  (`allowBuilds`); on pnpm ≥ 11.21 the stable key
+  `dsh-pi-ai-sync@git+https://github.com/jiaruihuang/dsh-pi-ai-sync.git`
+  survives later pushes, the commit-pinned codeload key does not.
 
 [Unreleased]: https://github.com/jiaruihuang/dsh-pi-ai-sync/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jiaruihuang/dsh-pi-ai-sync/releases/tag/v0.1.0
