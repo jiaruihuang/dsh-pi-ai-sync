@@ -49,14 +49,42 @@ after a dsh restart — a round that added models reports `restartNeeded`.
 
 ## Install
 
+Not on npm yet — install it from GitHub today:
+
 ```bash
-npm install dsh-pi-ai-sync
-dsh plugin --profile web add dsh-pi-ai-sync
+# newest `main` (what you want while the plugin is still young)
+dsh plugin --profile web add github:jiaruihuang/dsh-pi-ai-sync
+
+# a pinned release
+dsh plugin --profile web add github:jiaruihuang/dsh-pi-ai-sync#v0.1.0
+
 # or from a local checkout:
 dsh plugin --profile web add /path/to/dsh-pi-ai-sync
 ```
 
 Restart dsh afterwards (bundle-layer change).
+
+### GitHub installs need the build script allowed
+
+A `github:` install runs the package's `prepare` script (never
+`prepublishOnly`), because the TypeScript sources are the only thing in the
+repository — `lib/` is gitignored. pnpm blocks install-time scripts by default,
+so add the key it prints to the profile's `pnpm-workspace.yaml`:
+
+```yaml
+allowBuilds:
+  "dsh-pi-ai-sync@git+https://github.com/jiaruihuang/dsh-pi-ai-sync.git": true
+```
+
+Use that form, not a bare `dsh-pi-ai-sync: true` (pnpm cannot match a name to a
+git source) and not the commit-pinned `…/tar.gz/<sha>` form pnpm's own error
+message suggests — the pinned key goes stale on the next push, the `git+https`
+key does not. dshmarket's "allow build scripts and retry" button writes both
+forms for you.
+
+Integrity note: the tarball your install resolves to is the tag/commit you
+asked for, and the build happens on your machine from those sources. Use
+`#vX.Y.Z` when you want a reproducible environment.
 
 ## Configuration
 

@@ -47,14 +47,39 @@ catalog 只在 dsh 启动时读进内存，所以第 2 步要**重启**才生效
 
 ## 安装
 
+尚未发布到 npm，目前从 GitHub 安装：
+
 ```bash
-npm install dsh-pi-ai-sync
-dsh plugin --profile web add dsh-pi-ai-sync
+# 跟随最新的 main（插件早期阶段推荐）
+dsh plugin --profile web add github:jiaruihuang/dsh-pi-ai-sync
+
+# 固定到某个发布版本
+dsh plugin --profile web add github:jiaruihuang/dsh-pi-ai-sync#v0.1.0
+
 # 或从本地目录：
 dsh plugin --profile web add /path/to/dsh-pi-ai-sync
 ```
 
 装完需重启 dsh（bundle 层变更）。
+
+### GitHub 安装需要放行构建脚本
+
+`github:` 安装会执行包的 `prepare` 脚本（而非 `prepublishOnly`）—— 因为仓库里
+只有 TypeScript 源码，`lib/` 是被 gitignore 的编译产物。pnpm 默认拦截安装期脚本，
+所以要把 pnpm 打印出来的那把 key 加进 profile 的 `pnpm-workspace.yaml`：
+
+```yaml
+allowBuilds:
+  "dsh-pi-ai-sync@git+https://github.com/jiaruihuang/dsh-pi-ai-sync.git": true
+```
+
+请用这个形式，不要用裸包名 `dsh-pi-ai-sync: true`（pnpm 无法把包名匹配到 git 来源），
+也不要用 pnpm 报错信息里建议的 commit 固定形式 `…/tar.gz/<sha>` —— 固定形式在你下次
+push 后就失效，而 `git+https` 形式不会。dshmarket 的「允许构建脚本并重试」按钮会把
+两种形式都写进去。
+
+完整性说明：安装解析到的 tarball 就是你要的 tag/commit，构建在你的机器上用那份源码
+完成。想要可复现的环境就用 `#vX.Y.Z`。
 
 ## 配置
 

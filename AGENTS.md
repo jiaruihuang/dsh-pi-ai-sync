@@ -132,6 +132,33 @@ fight over `models`). Disable the other plugin/layer first.
 
 ## Roadmap / known gaps
 
+### Verified on a real host, not yet fixed (2026-10-14)
+
+Both found while debugging a real dsh profile; both are user-visible on a
+proxied network, which is how the development host reaches pi.dev.
+
+- **`src/pidev.ts` ignores the proxy environment.** Node's global `fetch`
+  (undici) does **not** honour `http_proxy` / `https_proxy` by default, so the
+  round talks to pi.dev directly even when the host has no direct route to it.
+  Symptom observed: route `opencode` failed with a bare
+  `TypeError: fetch failed` while `opencode-go` succeeded in the same round, and
+  three immediate retries from the same shell all returned HTTP 200 / 50 KB —
+  i.e. intermittent, network-shaped, not a pi.dev outage. Two candidate fixes:
+  set `NODE_USE_ENV_PROXY=1` in the host environment (Node ≥ 24 honours it), or
+  give `fetchPiDevEntries` an undici `EnvHttpProxyAgent` / `ProxyAgent` that
+  respects `NO_PROXY`. Prefer the code fix: it must not depend on the host's
+  env being right.
+- **A round loses its failure cause and does not retry.** `errorText()` returns
+  `error.message` only, so every fetch failure is reported as `fetch failed` and
+  `error.cause` (the socket/TLS reason that identifies *which* layer broke) is
+  discarded. There is also no retry inside a round: one transient failure skips
+  that route's settings leg entirely. The skip itself is correct and must stay
+  (never unset `models` for a route whose listing could not be verified), but it
+  should be reported with its cause, and the fetch deserves a bounded
+  retry/backoff before the route is given up on.
+
+### Longer term
+
 - **Provider-native `GET /models` union** (dsh-model-sync's
   `providerNativeFetch`): fetch a provider's own listing for routes pi.dev lags
   and union the ids in (additions-only, capacities only when stated). Needs a
