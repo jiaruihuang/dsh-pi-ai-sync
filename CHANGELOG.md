@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `prepare` script added: a `github:` install runs `prepare`, never
+  `prepublishOnly`, so the package arrived without `lib/` (which is
+  gitignored) and `main: lib/index.js` did not resolve. Profiles installing
+  from GitHub must allow the build script in `pnpm-workspace.yaml`
+  (`allowBuilds`); on pnpm ≥ 11.21 the stable key
+  `dsh-pi-ai-sync@git+https://github.com/jiaruihuang/dsh-pi-ai-sync.git`
+  survives later pushes, the commit-pinned codeload key does not.
+
 ## [0.1.0] - 2026-10-14
 
 ### Added
