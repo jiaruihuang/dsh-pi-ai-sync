@@ -17,9 +17,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fan56/dsh-pi-ai-sync.git"
+    "url": "git+https://github.com/jiaruihuang/dsh-pi-ai-sync.git"
   },
-  "homepage": "https://github.com/fan56/dsh-pi-ai-sync",
+  "homepage": "https://github.com/jiaruihuang/dsh-pi-ai-sync",
   "engines": {
     "node": ">=22.19.0"
   },
