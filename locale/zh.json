@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "dsh-pi-ai-sync",
+    "description": "让各 provider 路由与 pi.dev 网关保持同步：把缺失模型写进 pi-ai catalog，并整理路由的 settings 模型清单。"
+  }
+}

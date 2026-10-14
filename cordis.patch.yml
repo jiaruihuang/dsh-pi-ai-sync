@@ -1,0 +1,10 @@
+# dsh-pi-ai-sync bundle patch: mounts the plugin into the profile's assembly
+# tree under the stable plugin id `pi-ai-sync` and registers the
+# `pi-ai-sync` settings namespace. One round fetches pi.dev's per-route model
+# listing, merges missing models into the installed pi-ai catalog (the layer
+# `dsh-opencode-go-models` maintains), and reconciles the route's settings
+# `models` entry (the layer `dsh-model-sync` maintains).
+
+- insert:
+    - id: pi-ai-sync
+      name: 'dsh-pi-ai-sync'

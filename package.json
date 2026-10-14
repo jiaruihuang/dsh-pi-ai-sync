@@ -1,0 +1,67 @@
+{
+  "name": "dsh-pi-ai-sync",
+  "version": "0.1.0",
+  "description": "dsh plugin: fuse dsh-model-sync (settings seam) and dsh-opencode-go-models (pi-ai catalog file) so provider routes stay in step with the pi.dev gateway — and new models become selectable without hand-editing node_modules.",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "icon": "./icon.svg",
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "plugin",
+    "pi-ai",
+    "model-sync",
+    "catalog"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fan56/dsh-pi-ai-sync.git"
+  },
+  "homepage": "https://github.com/fan56/dsh-pi-ai-sync",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "src",
+    "icon.svg",
+    "locale/*.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "pretest": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.mjs",
+    "smoke": "node scripts/smoke-boot.mjs"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/schemastery": "^3.18.2"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/schemastery": "3.18.2",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

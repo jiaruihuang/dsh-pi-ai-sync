@@ -1,0 +1,50 @@
+# CI: build, typecheck, unit tests, and a host-free smoke boot on every push
+# to main, every pull request, and a daily schedule.
+#
+# The repo's devDependencies are self-contained (cordis + schemastery only), so
+# no dsh install / closure linking is needed — unlike plugins that import dsh
+# internals at the type level. A scratch-profile boot against a real dsh host
+# is on the roadmap (see AGENTS.md).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Daily 03:41 UTC — surfaces upstream schemastery/cordis drift early.
+    - cron: '41 3 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Build, Test & Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # engines: node >=22.19.0
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & typecheck
+        run: npm run build && npm run check
+
+      - name: Test
+        run: npm test
+
+      - name: Smoke boot
+        run: node scripts/smoke-boot.mjs

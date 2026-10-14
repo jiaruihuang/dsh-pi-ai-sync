@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "dsh-pi-ai-sync",
+    "description": "Keeps provider routes in step with the pi.dev gateway: writes missing models into the pi-ai catalog and reconciles the route's settings model list."
+  }
+}
