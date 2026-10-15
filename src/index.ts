@@ -35,6 +35,12 @@ export const Config = z.object({
   settingsMode: z.union(['unset', 'mirror', 'keep']).default('unset'),
   /** Maintain the installed pi-ai catalog files (the fusion's core layer). */
   catalogSync: z.boolean().default(true),
+  /**
+   * Also refresh records the catalog already has, with the fields pi.dev states
+   * today. Off by default: the add-only merge is what stops a partial pi.dev
+   * listing from rewriting your models. Fields pi.dev does not state are kept.
+   */
+  updateExistingModels: z.boolean().default(false),
   /** Minutes between auto rounds; 0 = startup only. */
   intervalMinutes: z.number().step(1).min(0).default(240),
   /** Delay before the first auto round, so the adapter is ready. */

@@ -30,6 +30,14 @@ Re-verify them when bumping the supported dsh line.
   `import values from "./data/<route>.json" with { type: "json" }` and
   flattened by `flattenModelCatalog` — **at boot only**. Hence the restart
   requirement. See `src/catalog.ts`.
+- **`zen` and `inference` are the same opencode backend.** pi.dev now
+  states `https://opencode.ai/inference/…` where the catalog (and
+  `dsh-opencode-go-models` before it) had `https://opencode.ai/zen/…`.
+  Measured 2026-10-15: both families are live and serve an identical listing
+  (`/zen/v1/models` and `/inference/v1/models` each 200, same 86 ids, 7212
+  bytes). A route-level `baseURL` in `llm-pi-ai` overrides a record's
+  `baseUrl`, so a profile can pin an endpoint while everything else tracks
+  pi.dev.
 - **Protocol resolution** (`dsh-llm-pi-ai/lib/index.js`, `resolveRouteModels`):
   `const api = request.api ?? base?.api ?? routeApi`, and
   `routeApi = sharedCatalogApi(defaults)` is `undefined` when the installed
@@ -133,6 +141,13 @@ fight over `models`). Disable the other plugin/layer first.
   ever see the old or the new complete file.
 - **Add-only catalog merges.** `mergeNewEntries` never modifies or removes
   existing records. Removal/pruning is deliberately out of scope for v0.1.
+- **`updateExistingEntries` is the only thing that touches an existing record,
+  and it is opt-in** (`updateExistingModels`, default `false`). It must apply
+  **pi.dev's own stated fields only** — never the defaults `toCatalogEntry`
+  fills in, or a `cost` pi.dev merely omitted gets zeroed and a paid model is
+  silently mispriced. Keep its comparison key-order-insensitive: a refresh
+  that believes it changed something rewrites the catalog every round
+  (measured: 0 further changes on the second pass).
 - **Fail-safe restore.** `restoreCatalogFile` refuses to roll back a file that
   was externally replaced (a pi-ai upgrade). Keep that guard.
 - **No dsh type dependencies at runtime.** Host services are consumed through
@@ -178,8 +193,11 @@ proxied network, which is how the development host reaches pi.dev.
   i.e. intermittent, network-shaped, not a pi.dev outage. Two candidate fixes:
   set `NODE_USE_ENV_PROXY=1` in the host environment (Node ≥ 24 honours it), or
   give `fetchPiDevEntries` an undici `EnvHttpProxyAgent` / `ProxyAgent` that
-  respects `NO_PROXY`. Prefer the code fix: it must not depend on the host's
-  env being right.
+  respects `NO_PROXY`. **Shipped: the README documents the environment
+  variable** — the code fix means taking on an `undici` dependency in a package
+  that currently has none, and the host flag is one line in a launcher.
+  Revisit if a dependency ever becomes acceptable; until then a proxied host
+  must set the flag itself.
 - **A round loses its failure cause and does not retry.** `errorText()` returns
   `error.message` only, so every fetch failure is reported as `fetch failed` and
   `error.cause` (the socket/TLS reason that identifies *which* layer broke) is
@@ -201,6 +219,8 @@ proxied network, which is how the development host reaches pi.dev.
 - **ETag / 304 revalidation** for pi.dev fetches (dsh-model-sync has it).
 - **Per-route configuration** (e.g. different `settingsMode` per route).
 - **Catalog pruning** of ids the provider retired (opt-in, off by default).
+  Refreshing records that still exist shipped as `updateExistingModels`; only
+  removal is left.
 - **Real-host boot smoke**: `scripts/smoke-boot.mjs` currently validates the
   compiled plugin in-process. A CI smoke that boots a scratch dsh profile with
   the plugin mounted (mocking the pi-ai data dir) would catch cordis inject-gate

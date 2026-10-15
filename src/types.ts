@@ -88,6 +88,12 @@ export interface PluginConfig {
   settingsMode: 'unset' | 'mirror' | 'keep'
   /** Maintain the pi-ai catalog files (the fusion's core layer). */
   catalogSync: boolean
+  /**
+   * Refresh the records that already exist with the fields pi.dev states today.
+   * Off by default: add-only is what keeps a partial pi.dev listing from
+   * rewriting models you already have.
+   */
+  updateExistingModels: boolean
   /** Minutes between auto rounds; 0 = startup only. */
   intervalMinutes: number
   /** Delay before the first auto round. */

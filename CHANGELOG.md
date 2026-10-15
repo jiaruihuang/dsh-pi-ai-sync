@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `updateExistingModels` (default `false`): the round also **refreshes records
+the catalog already has** with the fields pi.dev states today. Only pi.dev's
+own fields are applied — a `cost` or capacity it stays silent about keeps the
+catalog's value, so nothing is zeroed by omission — and a record pi.dev has
+moved to another protocol is re-grouped under the new `api`. Records are still
+never removed, and a refresh writes the usual backup and needs the usual
+restart (reported as `catalog ↻N（…）`). It is off by default because the
+add-only merge is what stops a partial pi.dev listing from rewriting your
+models. Measured on a real profile: `opencode` 65 records refreshed with no
+protocol moves, `opencode-go` 31 including **7 protocol corrections** (e.g.
+`claude-haiku-5-5` was stored as `openai-completions` while pi.dev says
+`anthropic-messages`), and `step-5-preview-free`'s 8k context corrected to 1M.
+
+### Changed
+
+- Docs: the README now covers three host facts that decided real debugging
+  sessions — the stable pnpm `allowBuilds` key an install needs, that Node's
+  global `fetch` ignores `http_proxy` (run dsh with `NODE_USE_ENV_PROXY=1` on a
+  proxied host), and that `zen` / `inference` are two names for one opencode
+  backend (`AGENTS.md` records the measurements).
+
 ## [0.2.0] - 2026-10-15
 
 ### Changed

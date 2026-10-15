@@ -121,3 +121,46 @@ test('a route without a catalog file degrades cleanly', async () => {
   assert.equal(report.routes[0].settings, 'skipped')
   assert.equal(report.restartNeeded, false)
 })
+
+test('updateExistingModels refreshes stale records, and only when enabled', async () => {
+  const stale = {
+    id: 'known',
+    api: 'openai-completions',
+    contextWindow: 8192,
+    maxTokens: 4096,
+    cost: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+  }
+  const feed = [{ id: 'known', api: 'openai-completions', contextWindow: 1000000, maxTokens: 65536 }]
+  const round = (dataDir, config) => runRound({
+    logger,
+    settings: fakeSettings({ opencode: {} }),
+    dataDir,
+    fetchEntries: async () => ({ absent: false, entries: feed }),
+  }, config)
+
+  // off (the default): add-only, the stale record keeps its values
+  const off = await tempDataDir({ 'openai-completions': { known: { ...stale } } })
+  const offReport = await round(off, baseConfig())
+  assert.deepEqual(offReport.routes[0].catalogUpdated, [])
+  assert.equal(offReport.restartNeeded, false)
+  assert.equal((await readCatalog(path.join(off, 'opencode.json')))['openai-completions'].known.contextWindow, 8192)
+
+  // on: refreshed, reported, restart needed, backed up first
+  const on = await tempDataDir({ 'openai-completions': { known: { ...stale } } })
+  const onReport = await round(on, baseConfig({ updateExistingModels: true }))
+  assert.deepEqual(onReport.routes[0].catalogUpdated, ['known'])
+  assert.deepEqual(onReport.routes[0].catalogAdded, [])
+  assert.equal(onReport.restartNeeded, true)
+  assert.match(onReport.text, /catalog ↻1/)
+  assert.match(onReport.text, /需重启/)
+
+  const doc = await readCatalog(path.join(on, 'opencode.json'))
+  assert.equal(doc['openai-completions'].known.contextWindow, 1000000)
+  assert.equal(doc['openai-completions'].known.maxTokens, 65536)
+  // pi.dev said nothing about cost, so the catalog's own values survive
+  assert.deepEqual(doc['openai-completions'].known.cost, { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 })
+
+  const backup = await readBackup(path.join(on, 'opencode.json'))
+  assert.ok(backup !== undefined)
+  assert.equal(backup.original['openai-completions'].known.contextWindow, 8192)
+})

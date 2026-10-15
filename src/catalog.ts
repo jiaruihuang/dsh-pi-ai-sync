@@ -124,6 +124,91 @@ export function mergeNewEntries(
   return { next, added }
 }
 
+/**
+ * Order-insensitive deep equality.
+ *
+ * `JSON.stringify` would call a re-ordered object a change, and a refresh that
+ * thinks it changed something writes the file every round.
+ */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (a === null || b === null) return false
+  if (typeof a !== 'object' || typeof b !== 'object') return false
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+    return a.every((item, index) => sameValue(item, b[index]))
+  }
+  const left = a as Record<string, unknown>
+  const right = b as Record<string, unknown>
+  const keys = Object.keys(left)
+  if (keys.length !== Object.keys(right).length) return false
+  return keys.every((key) => key in right && sameValue(left[key], right[key]))
+}
+
+/** The result of refreshing existing records. */
+export interface CatalogRefresh {
+  next: CatalogDocument
+  /** Ids whose stated fields changed. */
+  updated: string[]
+  /** Ids pi.dev moved to a different api group (a subset of `updated`). */
+  moved: string[]
+}
+
+/**
+ * Pure refresh: for the records the catalog already has, take the fields pi.dev
+ * states today.
+ *
+ * A field pi.dev does not state is left exactly as it is, so values only this
+ * catalog carries survive; nothing is ever added or removed (that is
+ * {@link mergeNewEntries}' job). A protocol change moves the record to pi.dev's
+ * `api` group instead of leaving dsh speaking the old wire protocol.
+ *
+ * Only pi.dev's own fields are applied — the defaults {@link toCatalogEntry}
+ * fills in are used solely as the validity gate. Folding them in would zero out
+ * a `cost` pi.dev merely left out, and silently misprice a paid model.
+ *
+ * Opt-in: add-only is what stops a partial pi.dev listing from rewriting the
+ * models you already have.
+ */
+export function updateExistingEntries(
+  route: string,
+  doc: CatalogDocument,
+  entries: readonly PiDevEntry[],
+): CatalogRefresh {
+  const next = JSON.parse(JSON.stringify(doc)) as CatalogDocument
+  const groupOf = new Map<string, string>()
+  for (const [api, group] of Object.entries(next)) {
+    for (const id of Object.keys(group)) groupOf.set(id, api)
+  }
+  const updated: string[] = []
+  const moved: string[] = []
+  for (const entry of entries) {
+    const valid = toCatalogEntry(route, entry)
+    if (valid === undefined) continue
+    const from = groupOf.get(valid.id)
+    if (from === undefined) continue
+    const record = next[from][valid.id] as Record<string, unknown>
+    let changed = false
+    for (const [key, value] of Object.entries(entry)) {
+      if (value === undefined || sameValue(record[key], value)) continue
+      record[key] = value
+      changed = true
+    }
+    if (!changed) continue
+    const stated = record.api
+    const to = typeof stated === 'string' && stated.length > 0 ? stated : from
+    if (to !== from) {
+      delete next[from][valid.id]
+      next[to] ??= {}
+      next[to][valid.id] = record as PiDevEntry
+      groupOf.set(valid.id, to)
+      moved.push(valid.id)
+    }
+    updated.push(valid.id)
+  }
+  return { next, updated, moved }
+}
+
 /** Read and validate one catalog file. */
 export async function readCatalog(file: string): Promise<CatalogDocument> {
   const doc: unknown = JSON.parse(await fs.readFile(file, 'utf8'))

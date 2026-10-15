@@ -83,6 +83,16 @@ push 后就失效，而 `git+https` 形式不会。dshmarket 的「允许构建�
 完整性说明：安装解析到的 tarball 就是你要的 tag/commit，构建在你的机器上用那份源码
 完成。想要可复现的环境就用 `#vX.Y.Z`。
 
+### 走代理的环境
+
+本插件用 Node 全局的 `fetch` 访问 pi.dev，而它**默认不读** `http_proxy` / `https_proxy`。如果所在网络只有走代理才能到 pi.dev，一轮同步就会失败并只报一个 `TypeError: fetch failed`——而且是**偶发**的，因为其它主机往往还能直连。启动 dsh 时加上：
+
+```bash
+NODE_USE_ENV_PROXY=1 dsh web          # Node >= 24；可用 node --help | grep proxy 确认
+```
+
+（`--use-env-proxy` 是同一个开关的命令行写法。）`NO_PROXY` 两种写法都生效。这**刻意做成宿主设置**：从插件内部读代理环境意味着引入一个 HTTP 代理依赖，而本包目前零运行时依赖。
+
 ## 配置
 
 编辑 settings 文档里的 `pi-ai-sync` 段（dsh 0.1.x 线上即 `~/.dsh/settings.yaml`）：
@@ -101,6 +111,7 @@ pi-ai-sync:
 | `managedRoutes` | `[]` | 要同步的路由；留空 = `opencode`、`opencode-go` |
 | `settingsMode` | `unset` | `unset` 移除路由的 `models` 覆盖；`mirror` 用 pi.dev 重写；`keep` 不动 settings |
 | `catalogSync` | `true` | 维护已安装的 pi-ai catalog 文件（核心层） |
+| `updateExistingModels` | `false` | 同时用 pi.dev 当前的字段刷新 catalog **已有**的记录 |
 | `intervalMinutes` | `240` | 自动刷新间隔；`0` = 只跑启动轮 |
 | `startupDelaySeconds` | `5` | 第一轮前的延迟 |
 | `refreshTimeoutMs` | `120000` | 单轮网络超时 |
@@ -152,6 +163,25 @@ llm-pi-ai:
 所以"catalog 里有、pi.dev 此刻没列"的 id 就叫 catalog-only。它**不是 pi.dev 记录出错，也没有任何东西被删除**：catalog 是"历来见过的并集"，两份列表只要 pi.dev 不再提供某个 id 就会产生差异。实际上绝大多数是促销性质的 `-free` 和实验性的 `-exp` 模型在轮换下架——这个数字自己会动（实测 `opencode` 先是 85 个，二十分钟后 83 个）。
 
 v0.1 故意不做删除：pi.dev 短暂故障或网络不好的一天，**绝不能**把你的模型从选择器里删掉。
+
+### 刷新"已经有了"的记录
+
+catalog 的合并是**只增不改**的：已存在的记录永远不动——这正是"pi.dev 某次给不全时不会重写你的模型"的保障。代价是：pi.dev 后来修正过的参数，会一直停留在旧值上。
+
+`updateExistingModels: true` 补上这个缺口。它**只应用 pi.dev 明确给出的字段**——pi.dev 没提的 `cost` 或容量保持 catalog 原值，不会被"缺省"清零；pi.dev 把某个模型换了协议时，记录会被搬到新的 `api` 分组，而不是继续用旧协议。它始终**不会删除**任何记录。
+
+真机实测（同样的数字也记在 `AGENTS.md` 里）：
+
+| 路由 | 刷新的记录数 | 协议迁移 |
+|---|---|---|
+| `opencode` | 65（`baseUrl`、`type`、`inputLimits`、compat、cost…） | 0 |
+| `opencode-go` | 31（`step-5-preview-free`：8K → 1M 上下文，4096 → 65536 输出） | **7** —— 例如 `claude-haiku-5-5` 从 openai-completions 改为 anthropic-messages |
+
+第二列才是重点：有 7 个模型被上一个插件统一写成了 `openai-completions`，于是 dsh 一直在用错误的协议去请求它们。
+
+`baseUrl` 是唯一需要多看一眼的字段。pi.dev 已把 `opencode` 挪到新的 `inference/*` 域名，而 catalog（和上一个插件）里还是 `zen/*`。两套域名目前**都活着且内容完全相同**——2026-10-15 实测：`/zen/v1/models` 与 `/inference/v1/models` 都返回 200，同样是 86 个 id——所以这里跟随 pi.dev 是安全的。想固定某个地址，就在 `llm-pi-ai` 里给该路由设 `baseURL`：路由级的 `baseURL` 会覆盖单条记录的 `baseUrl`，其它字段照旧跟随 pi.dev。
+
+刷新后的 catalog 和新增一样**需要重启**；报告里显示 `catalog ↻N（…）`；首次刷新同样会写备份。
 
 ## 命令与服务
 

@@ -4,7 +4,8 @@
  * For each managed route:
  *  1. fetch the route's pi.dev listing;
  *  2. catalog layer — copy records the installed pi-ai catalog is missing into
- *     `data/<route>.json` (atomic + first-modification backup);
+ *     `data/<route>.json` (atomic + first-modification backup), and, when
+ *     `updateExistingModels` is on, refresh the records it already has;
  *  3. settings layer — reconcile `llm-pi-ai.providers.<route>.models`.
  *
  * The catalog layer only takes effect after a dsh restart (the catalog is
@@ -21,6 +22,7 @@ import {
   findCatalogDataDir,
   mergeNewEntries,
   readCatalog,
+  updateExistingEntries,
   writeCatalogAtomic,
 } from './catalog.ts'
 import { fetchPiDevEntries, type PiDevFetchResult } from './pidev.ts'
@@ -51,6 +53,8 @@ export interface RoundDeps {
 export interface RouteOutcome {
   route: string
   catalogAdded: string[]
+  /** Ids whose existing record was refreshed (only with `updateExistingModels`). */
+  catalogUpdated: string[]
   settings: string
   error?: string
 }
@@ -64,6 +68,12 @@ export interface RoundReport {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+/** Up to five ids, plus a count when there are more. */
+function idList(ids: readonly string[]): string {
+  const head = ids.slice(0, 5).join(', ')
+  return ids.length > 5 ? `${head} 等 ${ids.length} 个` : head
 }
 
 /**
@@ -123,7 +133,7 @@ export async function runRound(deps: RoundDeps, config: PluginConfig): Promise<R
   }
 
   for (const route of routes) {
-    const outcome: RouteOutcome = { route, catalogAdded: [], settings: 'kept' }
+    const outcome: RouteOutcome = { route, catalogAdded: [], catalogUpdated: [], settings: 'kept' }
     try {
       let entries: PiDevEntry[] = []
       let absent = false
@@ -145,11 +155,21 @@ export async function runRound(deps: RoundDeps, config: PluginConfig): Promise<R
         if (doc !== undefined) {
           addressableIds = catalogIds(doc)
           if (config.catalogSync) {
-            const { next, added } = mergeNewEntries(route, doc, entries)
-            if (added.length > 0) {
+            // Refresh what already exists first, so a record added in this same
+            // round is never also reported as an update.
+            let carried = doc
+            let updated: string[] = []
+            if (config.updateExistingModels) {
+              const refreshed = updateExistingEntries(route, carried, entries)
+              carried = refreshed.next
+              updated = refreshed.updated
+            }
+            const { next, added } = mergeNewEntries(route, carried, entries)
+            if (added.length > 0 || updated.length > 0) {
               await ensureBackup(file, doc, next)
               await writeCatalogAtomic(file, next)
               outcome.catalogAdded = added
+              outcome.catalogUpdated = updated
               restartNeeded = true
             }
           }
@@ -182,18 +202,20 @@ export async function runRound(deps: RoundDeps, config: PluginConfig): Promise<R
 
   const lines = outcomes.map((outcome) => {
     const parts: string[] = []
+    const changes: string[] = []
     if (outcome.catalogAdded.length > 0) {
-      const head = outcome.catalogAdded.slice(0, 5).join(', ')
-      const more = outcome.catalogAdded.length > 5 ? ` 等 ${outcome.catalogAdded.length} 个` : ''
-      parts.push(`catalog +${outcome.catalogAdded.length}（${head}${more}）`)
-    } else if (config.catalogSync) {
-      parts.push('catalog 无新增')
+      changes.push(`+${outcome.catalogAdded.length}（${idList(outcome.catalogAdded)}）`)
     }
+    if (outcome.catalogUpdated.length > 0) {
+      changes.push(`↻${outcome.catalogUpdated.length}（${idList(outcome.catalogUpdated)}）`)
+    }
+    if (changes.length > 0) parts.push(`catalog ${changes.join(' ')}`)
+    else if (config.catalogSync) parts.push('catalog 无新增')
     parts.push(`settings: ${outcome.settings}`)
     if (outcome.error !== undefined) parts.push(`错误: ${outcome.error}`)
     return `${outcome.route}: ${parts.join('；')}`
   })
-  if (restartNeeded) lines.push('⚠️ catalog 已更新，需重启 dsh 后新模型才可选')
+  if (restartNeeded) lines.push('⚠️ catalog 已变更，需重启 dsh 后才生效')
 
   return { routes: outcomes, restartNeeded, text: lines.join('\n') }
 }

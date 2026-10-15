@@ -89,6 +89,23 @@ Integrity note: the tarball your install resolves to is the tag/commit you
 asked for, and the build happens on your machine from those sources. Use
 `#vX.Y.Z` when you want a reproducible environment.
 
+### Behind a proxy
+
+This plugin reaches pi.dev with Node's global `fetch`, which **ignores**
+`http_proxy` / `https_proxy` unless Node is told to read them. On a network
+that only reaches pi.dev through a proxy, a round fails with a bare
+`TypeError: fetch failed` — and only sometimes, because the direct route is
+usually still there for other hosts. Start dsh with:
+
+```bash
+NODE_USE_ENV_PROXY=1 dsh web          # Node >= 24; see: node --help | grep proxy
+```
+
+(`--use-env-proxy` is the same switch as a CLI flag.) `NO_PROXY` is honoured
+either way. This is a host setting on purpose: reading the environment from
+inside the plugin would mean taking on an HTTP-proxy dependency, and this
+package has none.
+
 ## Configuration
 
 Edit the `pi-ai-sync` section of your settings document (on the dsh 0.1.x line
@@ -108,6 +125,7 @@ pi-ai-sync:
 | `managedRoutes` | `[]` | Routes to sync; empty = `opencode`, `opencode-go` |
 | `settingsMode` | `unset` | `unset` removes the route's `models` override; `mirror` rewrites it from pi.dev; `keep` leaves settings alone |
 | `catalogSync` | `true` | Maintain the installed pi-ai catalog files (the core layer) |
+| `updateExistingModels` | `false` | Also refresh records the catalog **already has** with the fields pi.dev states today |
 | `intervalMinutes` | `240` | Auto-refresh interval; `0` = startup only |
 | `startupDelaySeconds` | `5` | Delay before the first auto round |
 | `refreshTimeoutMs` | `120000` | Abort budget for one round's request |
@@ -178,6 +196,41 @@ ids, then 83, twenty minutes later).
 
 Removal is deliberately out of scope for v0.1: a partial pi.dev outage or a
 bad network day must never delete models from your picker.
+
+### Refreshing records you already have
+
+The catalog merge is **add-only**: a record that is already there is never
+touched, which is what keeps a partial pi.dev listing from rewriting your
+models. The cost is that a model whose parameters pi.dev later corrected keeps
+the stale values forever.
+
+`updateExistingModels: true` closes that gap. Only the fields pi.dev actually
+states are applied — a `cost` or capacity pi.dev stays silent about keeps the
+catalog's value, so nothing is zeroed out by omission — and a record pi.dev has
+moved to another protocol is re-grouped under the new `api` instead of leaving
+dsh speaking the old one. It is still never a removal.
+
+Measured on a real profile (see `AGENTS.md` for the same numbers):
+
+| Route | Records refreshed | Protocol moves |
+|---|---|---|
+| `opencode` | 65 (baseUrl, `type`, `inputLimits`, compat, cost…) | 0 |
+| `opencode-go` | 31 (`step-5-preview-free`: 8k → 1M context, 4096 → 65536 maxTokens) | **7** — e.g. `claude-haiku-5-5` openai-completions → anthropic-messages |
+
+That second column is the point: 7 models had been flattened to
+`openai-completions` by an earlier plugin, so dsh was addressing them with the
+wrong wire protocol.
+
+`baseUrl` is the one field to look at twice. pi.dev moved `opencode` to its new
+`inference/*` host where the catalog (and that earlier plugin) had
+`zen/*`. Both families are live and identical — measured 2026-10-15,
+`/zen/v1/models` and `/inference/v1/models` both answer 200 with the same 86
+ids — so following pi.dev here is safe today. To pin an endpoint instead, set
+`baseURL` on the route in `llm-pi-ai`: a route-level `baseURL` overrides a
+record's `baseUrl` while everything else still tracks pi.dev.
+
+A refreshed catalog needs the same restart as an added one, the report shows
+`catalog ↻N（…）`, and the first refresh writes the usual backup.
 
 ## Commands and services
 
