@@ -1,5 +1,5 @@
 /**
- * The pi-ai catalog leg.
+ * The pi-ai catalog layer.
  *
  * dsh resolves a configured model's wire protocol as
  * `route.api ?? catalog[id].api ?? sharedCatalogApi(route)`. A route whose

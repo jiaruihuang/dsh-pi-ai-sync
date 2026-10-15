@@ -4,7 +4,7 @@
  * `https://pi.dev/api/models/providers/<route>` returns the route's model
  * listing already in pi-ai catalog shape (every record carries its own `api`
  * protocol, `baseUrl`, capacities, `thinkingLevelMap` and `compat`). That is
- * why the catalog leg can copy records verbatim instead of maintaining a
+ * why the catalog layer can copy records verbatim instead of maintaining a
  * hand-written protocol/family table the way `dsh-opencode-go-models` does.
  *
  * @module dsh-pi-ai-sync/pidev

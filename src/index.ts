@@ -2,9 +2,9 @@
  * dsh-pi-ai-sync — cordis plugin entry.
  *
  * Fuses the two model-sync styles on the dsh 0.1.x line:
- *  - `dsh-opencode-go-models`' catalog leg (writes the installed pi-ai
+ *  - `dsh-opencode-go-models`' catalog layer (writes the installed pi-ai
  *    `dist/providers/data/<route>.json`), and
- *  - `dsh-model-sync`' settings leg (reconciles `llm-pi-ai.providers.<route>.models`).
+ *  - `dsh-model-sync`' settings layer (reconciles `llm-pi-ai.providers.<route>.models`).
  *
  * The settings namespace is `pi-ai-sync` (the spelling this dsh line uses for
  * plugin-owned config). See AGENTS.md for the architecture and the host facts
@@ -33,7 +33,7 @@ export const Config = z.object({
   managedRoutes: z.array(z.string()).default([]),
   /** `unset` removes the route's models override; `mirror` rewrites it; `keep` leaves settings alone. */
   settingsMode: z.union(['unset', 'mirror', 'keep']).default('unset'),
-  /** Maintain the installed pi-ai catalog files (the fusion's core leg). */
+  /** Maintain the installed pi-ai catalog files (the fusion's core layer). */
   catalogSync: z.boolean().default(true),
   /** Minutes between auto rounds; 0 = startup only. */
   intervalMinutes: z.number().step(1).min(0).default(240),
@@ -43,8 +43,12 @@ export const Config = z.object({
   refreshTimeoutMs: z.number().step(1).min(1000).default(120000),
   /** Log the report when there was something to report. */
   syncNotify: z.boolean().default(true),
-  /** In `mirror` mode, keep catalog-only ids in the written list. */
-  keepBuiltinOnly: z.boolean().default(true),
+  /**
+   * In `mirror` mode, also write the ids that exist only in the catalog.
+   * Without this a catalog-only model drops out of the picker, because the
+   * written `models` list replaces the catalog wholesale.
+   */
+  keepCatalogOnly: z.boolean().default(true),
 })
 
 /** The settings scope dsh hands back from `settings.register`. */

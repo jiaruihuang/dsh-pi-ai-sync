@@ -1,8 +1,8 @@
 /**
- * The settings leg.
+ * The settings layer.
  *
  * `settingsMode: 'unset'` (default) removes the route's `models` override so
- * the installed catalog — now enriched by the catalog leg — serves the route
+ * the installed catalog — now enriched by the catalog layer — serves the route
  * directly. `settingsMode: 'mirror'` rewrites it from the pi.dev list
  * (dsh-model-sync's behavior); routes carrying non-empty `modelOverrides` are
  * skipped because folding and persisting those values is dsh-model-sync's
@@ -118,8 +118,8 @@ async function mutateWithRetry(
   }
 }
 
-/** The result of one route's settings-leg action. */
-export type SettingsLegResult =
+/** The result of one route's settings-layer action. */
+export type SettingsOutcome =
   | 'unset'
   | 'no-models'
   | 'wrote'
@@ -137,7 +137,7 @@ export async function unsetModels(
   settings: SettingsService | undefined,
   route: string,
   logger: Logger,
-): Promise<SettingsLegResult> {
+): Promise<SettingsOutcome> {
   if (settings === undefined) return 'skipped'
   const descriptor = findLlmDescriptor(settings)
   if (descriptor === undefined) return 'skipped'
@@ -159,7 +159,7 @@ export async function writeModels(
   route: string,
   target: SettingsModelProfile[],
   logger: Logger,
-): Promise<SettingsLegResult> {
+): Promise<SettingsOutcome> {
   if (settings === undefined) return 'skipped'
   const descriptor = findLlmDescriptor(settings)
   if (descriptor === undefined) return 'skipped'

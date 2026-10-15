@@ -34,13 +34,15 @@ settings 的模型 schema **没有 per-model 的 `api` 字段**，于是：
 ```
 每轮，对每个受管路由
   1. GET https://pi.dev/api/models/providers/<route>     （catalog 形状的记录）
-  2. catalog 腿  → 把已安装 catalog 缺失的记录补进
-                   dist/providers/data/<route>.json
-                   （原子写 + 首次修改前备份）
-                   ⇒ 模型变成 base-matching；需重启
-  3. settings 腿 → 整理 llm-pi-ai.providers.<route>.models
-                   （默认 unset；可选 mirror/keep）
+  2. catalog 层  → 把已安装 catalog 缺失的记录补进
+                  dist/providers/data/<route>.json
+                  （原子写 + 首次修改前备份）
+                  ⇒ 模型变成 base-matching；需重启
+  3. settings 层 → 整理 llm-pi-ai.providers.<route>.models
+                  （默认 unset；可选 mirror/keep）
 ```
+
+**层（layer）指数据住在哪**：pi-ai catalog / `llm-pi-ai` settings。一轮同步会按顺序对每个受管路由处理这两层。
 
 catalog 只在 dsh 启动时读进内存，所以第 2 步要**重启**才生效——本轮若补了模型，报告
 会带 `restartNeeded`。
@@ -98,12 +100,58 @@ pi-ai-sync:
 |---|---|---|
 | `managedRoutes` | `[]` | 要同步的路由；留空 = `opencode`、`opencode-go` |
 | `settingsMode` | `unset` | `unset` 移除路由的 `models` 覆盖；`mirror` 用 pi.dev 重写；`keep` 不动 settings |
-| `catalogSync` | `true` | 维护已安装的 pi-ai catalog 文件（核心腿） |
+| `catalogSync` | `true` | 维护已安装的 pi-ai catalog 文件（核心层） |
 | `intervalMinutes` | `240` | 自动刷新间隔；`0` = 只跑启动轮 |
 | `startupDelaySeconds` | `5` | 第一轮前的延迟 |
 | `refreshTimeoutMs` | `120000` | 单轮网络超时 |
 | `syncNotify` | `true` | 有内容时把报告写进日志 |
-| `keepBuiltinOnly` | `true` | `mirror` 模式下保留 catalog-only 的 id |
+| `keepCatalogOnly` | `true` | `mirror` 模式下，把"只存在于 catalog 里"的 id 也一并写出 |
+
+### 怎么选 `settingsMode`
+
+`models` 是**整份替换**catalog 的。dsh 的判断是
+`configured.length > 0 ? configured : catalog`——一旦列表非空，catalog 自己那份就不再被使用。**这正是三个模式的分界线**：
+
+| 值 | 对 `llm-pi-ai.providers.<route>.models` 做什么 | 什么时候用 |
+|---|---|---|
+| `unset`（默认） | 删掉这个键；`modelOverrides` 故意保留 | 想让补齐后的 catalog 当唯一事实来源——插件的设计默认 |
+| `mirror` | 写出完整列表：pi.dev 中 catalog 兜得住的条目 + catalog-only 的 id（裸 `{ id }`） | 想在 settings 里看得见、能编辑这份列表（= dsh-model-sync 的行为） |
+| `keep` | 什么都不做，只跑 catalog 层 | 列表完全由你自己管 |
+
+选之前值得知道的几点：
+
+- `mirror` **每轮都会整份重写**，所以你在它写出的条目上手工改的字段**不会保留**。想微调某个模型，就不要用 `models`——见下。
+- `mirror` 对带有非空 `modelOverrides` 的路由**拒写**：dsh 不允许两者并存（*"models already replaces the served catalog"*）。
+- `keep` **不等于**"由 catalog 决定"。只要你留着非空的 `models`，服务的仍然是那份列表。
+- `keepCatalogOnly`（默认 `true`）就是它把 catalog-only 的模型留在 mirror 列表里；设成 `false` 它们就从选择器里消失。
+
+### 不用 `models` 也能微调模型
+
+当路由**没有** `models` 键时，dsh 用 catalog 生成列表，然后逐条叠加 `modelOverrides`：
+
+```yaml
+llm-pi-ai:
+  providers:
+    opencode:
+      apiKeyEnv: OPENCODE_API_KEY
+      baseURL: https://opencode.ai/zen/v1
+      modelOverrides:
+        step-5-preview-free:
+          maxTokens: 65536
+```
+
+这样该路由提供**全部** catalog 模型，其中你指定的字段被覆盖。这也正是 `settingsMode: unset` 保留下来的形状。dsh 会严格校验三条：`modelOverrides` 只能写 catalog 已描述的 id；不能与非空 `models` 并存；字段只有 `name`、`contextWindow`、`maxTokens`、`input`、`reasoningEfforts`、`compat`——**没有 `api`、没有 `id`**（id 就是字典的键）。
+
+### 为什么会有 "catalog-only" 的 id
+
+两份列表各走各的：
+
+- **磁盘上的 catalog**——出厂快照 + 历次同步合并进来的 id，而且合并**只增不删**；
+- **pi.dev 的实时列表**——会不断增删模型。
+
+所以"catalog 里有、pi.dev 此刻没列"的 id 就叫 catalog-only。它**不是 pi.dev 记录出错，也没有任何东西被删除**：catalog 是"历来见过的并集"，两份列表只要 pi.dev 不再提供某个 id 就会产生差异。实际上绝大多数是促销性质的 `-free` 和实验性的 `-exp` 模型在轮换下架——这个数字自己会动（实测 `opencode` 先是 85 个，二十分钟后 83 个）。
+
+v0.1 故意不做删除：pi.dev 短暂故障或网络不好的一天，**绝不能**把你的模型从选择器里删掉。
 
 ## 命令与服务
 
@@ -112,7 +160,7 @@ pi-ai-sync:
 
 ## 注意事项
 
-- **catalog 腿会写 `node_modules`。** 这是绕不开的：dsh 0.1.x 里，base-less
+- **catalog 层会写 `node_modules`。** 这是绕不开的：dsh 0.1.x 里，base-less
   模型的协议只能从已安装的 pi-ai catalog 学到。写入是原子的、首次修改前有备份、
   真卸载时会还原（被 pi-ai 升级整体替换过的文件则不动）。pi-ai 升级会覆盖这些新增，
   下一轮会重新补上。

@@ -3,11 +3,11 @@
  *
  * For each managed route:
  *  1. fetch the route's pi.dev listing;
- *  2. catalog leg — copy records the installed pi-ai catalog is missing into
+ *  2. catalog layer — copy records the installed pi-ai catalog is missing into
  *     `data/<route>.json` (atomic + first-modification backup);
- *  3. settings leg — reconcile `llm-pi-ai.providers.<route>.models`.
+ *  3. settings layer — reconcile `llm-pi-ai.providers.<route>.models`.
  *
- * The catalog leg only takes effect after a dsh restart (the catalog is
+ * The catalog layer only takes effect after a dsh restart (the catalog is
  * imported into memory at boot), so a round that added models reports
  * `restartNeeded`.
  *
@@ -66,11 +66,20 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-/** Build the `mirror` target: addressable pi.dev entries + catalog-only ids. */
+/**
+ * Build the `mirror` target.
+ *
+ * `models` replaces the served catalog wholesale, so an id left out of it
+ * disappears from the picker. Two groups go in: pi.dev entries the installed
+ * catalog can back, then — when `keepCatalogOnly` — the ids that exist *only*
+ * in the catalog (promo/experimental models pi.dev has since dropped, and ids
+ * the factory catalog shipped that pi.dev never listed). Those go in as bare
+ * `{ id }`; dsh resolves their api/baseUrl/capacities from the catalog.
+ */
 function mirrorTarget(
   entries: readonly PiDevEntry[],
   addressableIds: Set<string>,
-  keepBuiltinOnly: boolean,
+  keepCatalogOnly: boolean,
 ): SettingsModelProfile[] {
   const profiles: SettingsModelProfile[] = []
   const seen = new Set<string>()
@@ -82,7 +91,7 @@ function mirrorTarget(
     profiles.push(profile)
     seen.add(entry.id)
   }
-  if (keepBuiltinOnly) {
+  if (keepCatalogOnly) {
     for (const id of addressableIds) {
       if (piDevIds.has(id) || seen.has(id)) continue
       profiles.push({ id })
@@ -160,7 +169,7 @@ export async function runRound(deps: RoundDeps, config: PluginConfig): Promise<R
             outcome.settings = 'skipped'
             break
           }
-          const target = mirrorTarget(entries, addressableIds, config.keepBuiltinOnly)
+          const target = mirrorTarget(entries, addressableIds, config.keepCatalogOnly)
           outcome.settings = await writeModels(deps.settings, route, target, deps.logger)
           break
         }

@@ -9,10 +9,10 @@ file is the engineering one.
 A dsh Cordis plugin that keeps provider routes in step with the pi.dev gateway
 by maintaining **two layers**:
 
-1. **pi-ai catalog leg** — writes missing model records into the installed
+1. **pi-ai catalog layer** — writes missing model records into the installed
    `@earendil-works/pi-ai` catalog JSON. This is what
    `dsh-opencode-go-models` does, generalised to any route.
-2. **settings leg** — reconciles `llm-pi-ai.providers.<route>.models`. This is
+2. **settings layer** — reconciles `llm-pi-ai.providers.<route>.models`. This is
    what `dsh-model-sync` does.
 
 The rationale is in the README "Why" section. In short: on dsh 0.1.x a
@@ -38,6 +38,22 @@ Re-verify them when bumping the supported dsh line.
 - **Settings model schema** (`dsh-llm-pi-ai/lib/index.js`, `modelFields`): `id`,
   `name`, `contextWindow`, `maxTokens`, `input`, `reasoningEfforts`, `compat`.
   There is **no per-model `api`** — that is the whole reason this plugin exists.
+- **`models` replaces the catalog; `modelOverrides` layers onto it.**
+  `resolveRouteModels` computes
+  `const entries = configured.length > 0 ? configured : [...defaults].map(m => ({ id: m.id, ...overrides[m.id] }))`.
+  A non-empty `models` therefore makes the catalog's own list unused for that
+  route, and a non-empty `modelOverrides` beside it is rejected outright
+  ("models already replaces the served catalog"). `modelOverrides` may only
+  name ids the catalog describes, and its fields are `modelFields` minus `id`
+  (the id is the dict key). This is why `unset` strips `models` and leaves
+  `modelOverrides` standing.
+- **Catalog-only ids are normal, and merges must stay add-only.** The disk
+  catalog is the factory snapshot plus every id past rounds merged in; pi.dev's
+  listing gains and drops models (promo `-free` / `-exp` ids rotate out —
+  observed `opencode` 85 ids, then 83, twenty minutes later). An id the catalog
+  has and pi.dev does not list is *catalog-only*, not a pi.dev error: nothing
+  was deleted. Never "fix" the difference by removing either way — a partial
+  pi.dev outage must not delete models from the picker.
 - **Settings seam**: `ctx.settings.register(ns, schema)` → scope with `.get()`
   and `.watch()`; writes via `settings.describe()` (find `ns === 'llm-pi-ai'`,
   read `revision` and raw `user`) then
@@ -168,7 +184,7 @@ proxied network, which is how the development host reaches pi.dev.
   `error.message` only, so every fetch failure is reported as `fetch failed` and
   `error.cause` (the socket/TLS reason that identifies *which* layer broke) is
   discarded. There is also no retry inside a round: one transient failure skips
-  that route's settings leg entirely. The skip itself is correct and must stay
+  that route's settings layer entirely. The skip itself is correct and must stay
   (never unset `models` for a route whose listing could not be verified), but it
   should be reported with its cause, and the fetch deserves a bounded
   retry/backoff before the route is given up on.

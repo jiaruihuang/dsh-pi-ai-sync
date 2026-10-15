@@ -86,7 +86,7 @@ export interface PluginConfig {
   managedRoutes: string[]
   /** `unset` removes the route's settings `models` override; `mirror` rewrites it; `keep` leaves settings alone. */
   settingsMode: 'unset' | 'mirror' | 'keep'
-  /** Maintain the pi-ai catalog files (the fusion's core leg). */
+  /** Maintain the pi-ai catalog files (the fusion's core layer). */
   catalogSync: boolean
   /** Minutes between auto rounds; 0 = startup only. */
   intervalMinutes: number
@@ -96,6 +96,6 @@ export interface PluginConfig {
   refreshTimeoutMs: number
   /** Log the report when there was something to report. */
   syncNotify: boolean
-  /** In `mirror` mode, keep catalog-only ids in the written list. */
-  keepBuiltinOnly: boolean
+  /** In `mirror` mode, also write the ids that exist only in the catalog. */
+  keepCatalogOnly: boolean
 }

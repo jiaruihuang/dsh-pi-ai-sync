@@ -17,7 +17,7 @@ function baseConfig(overrides = {}) {
     startupDelaySeconds: 5,
     refreshTimeoutMs: 1000,
     syncNotify: true,
-    keepBuiltinOnly: true,
+    keepCatalogOnly: true,
     ...overrides,
   }
 }

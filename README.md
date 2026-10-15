@@ -36,13 +36,16 @@ catalog serve the route.
 ```
 one round, per managed route
   1. GET https://pi.dev/api/models/providers/<route>     (catalog-shaped records)
-  2. catalog leg  → copy records the installed catalog is missing into
-                    dist/providers/data/<route>.json
-                    (atomic write + first-modification backup)
-                    ⇒ the model becomes base-matching; restart needed
-  3. settings leg → reconcile llm-pi-ai.providers.<route>.models
-                    (unset by default; mirror/keep optional)
+  2. catalog layer  → copy records the installed catalog is missing into
+                       dist/providers/data/<route>.json
+                       (atomic write + first-modification backup)
+                       ⇒ the model becomes base-matching; restart needed
+  3. settings layer → reconcile llm-pi-ai.providers.<route>.models
+                       (unset by default; mirror/keep optional)
 ```
+
+A **layer** is where the data lives (the pi-ai catalog / the `llm-pi-ai`
+settings); a round touches both, in that order, for every managed route.
 
 Because the catalog is imported into memory at boot, step 2 only takes effect
 after a dsh restart — a round that added models reports `restartNeeded`.
@@ -104,12 +107,77 @@ pi-ai-sync:
 |---|---|---|
 | `managedRoutes` | `[]` | Routes to sync; empty = `opencode`, `opencode-go` |
 | `settingsMode` | `unset` | `unset` removes the route's `models` override; `mirror` rewrites it from pi.dev; `keep` leaves settings alone |
-| `catalogSync` | `true` | Maintain the installed pi-ai catalog files (the core leg) |
+| `catalogSync` | `true` | Maintain the installed pi-ai catalog files (the core layer) |
 | `intervalMinutes` | `240` | Auto-refresh interval; `0` = startup only |
 | `startupDelaySeconds` | `5` | Delay before the first auto round |
 | `refreshTimeoutMs` | `120000` | Abort budget for one round's request |
 | `syncNotify` | `true` | Log the report when there was something to report |
-| `keepBuiltinOnly` | `true` | In `mirror` mode, keep catalog-only ids in the written list |
+| `keepCatalogOnly` | `true` | In `mirror` mode, also write ids that exist only in the catalog |
+
+### Choosing `settingsMode`
+
+`models` **replaces** the served catalog. dsh resolves
+`configured.length > 0 ? configured : catalog`, so a non-empty list stops the
+catalog's own list from being used at all. That is what makes the three modes
+different things:
+
+| Value | What it does to `llm-pi-ai.providers.<route>.models` | Use it when |
+|---|---|---|
+| `unset` (default) | removes the key; `modelOverrides` is deliberately left alone | you want the enriched catalog to be the single source of truth — the plugin's design |
+| `mirror` | writes the full list: pi.dev entries the catalog can back, plus catalog-only ids as bare `{ id }` | you want the list visible and editable in settings (dsh-model-sync's behaviour) |
+| `keep` | nothing — the catalog layer only | you manage the list entirely yourself |
+
+Notes worth knowing before you pick:
+
+- `mirror` **rewrites the whole list every round**, so hand-edited fields on it
+  do not survive. To hand-tune a model, leave `models` out — see below.
+- `mirror` refuses a route with non-empty `modelOverrides`: dsh rejects the two
+  together ("models already replaces the served catalog").
+- `keep` does **not** mean "the catalog decides". If you leave a non-empty
+  `models` list, that list is still what serves the route.
+- `keepCatalogOnly` (default `true`) is what holds catalog-only models in the
+  mirror list; `false` drops them from the picker.
+
+### Hand-tuning a model without `models`
+
+When a route has **no** `models` key, dsh builds the list from the catalog and
+then applies `modelOverrides` per id:
+
+```yaml
+llm-pi-ai:
+  providers:
+    opencode:
+      apiKeyEnv: OPENCODE_API_KEY
+      baseURL: https://opencode.ai/zen/v1
+      modelOverrides:
+        step-5-preview-free:
+          maxTokens: 65536
+```
+
+The route then offers every catalog model, with your values layered on. This is
+the shape `settingsMode: unset` leaves in place. dsh enforces three rules:
+`modelOverrides` may only name ids the installed catalog describes, it cannot
+sit beside a non-empty `models`, and its fields are `name`,
+`contextWindow`, `maxTokens`, `input`, `reasoningEfforts`, `compat` — no
+`api` and no `id` (the id is the dict key).
+
+### Why some ids are "catalog-only"
+
+Two lists move independently:
+
+- the **catalog on disk** — the factory snapshot plus every id past rounds
+  merged in, and merges are add-only;
+- **pi.dev's live listing** — which gains and drops models over time.
+
+An id the catalog has and pi.dev currently does not list is *catalog-only*. It
+is not a pi.dev error and nothing was deleted: the catalog is the union of
+everything ever seen, so the two differ whenever pi.dev stops offering an id.
+In practice that is mostly the promo `-free` and experimental `-exp` models,
+which rotate out — and the count moves on its own (observed: `opencode` at 85
+ids, then 83, twenty minutes later).
+
+Removal is deliberately out of scope for v0.1: a partial pi.dev outage or a
+bad network day must never delete models from your picker.
 
 ## Commands and services
 
@@ -119,7 +187,7 @@ pi-ai-sync:
 
 ## Caveats
 
-- **The catalog leg writes into `node_modules`.** That is inherent: the
+- **The catalog layer writes into `node_modules`.** That is inherent: the
   installed pi-ai catalog is the only place dsh 0.1.x can learn a protocol for
   a base-less model. Writes are atomic, a first-modification backup is kept,
   and a real uninstall restores it (a pi-ai upgrade that wholly replaces the

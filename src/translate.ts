@@ -2,7 +2,7 @@
  * pi.dev record → settings-writable model profile.
  *
  * Used only by `settingsMode: 'mirror'`. `settingsMode: 'unset'` (the
- * default) skips translation entirely: once the catalog leg has made every
+ * default) skips translation entirely: once the catalog layer has made every
  * model base-matching, the installed catalog is the richer, authoritative
  * source and the settings `models` override is removed instead.
  *
