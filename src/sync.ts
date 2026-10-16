@@ -25,7 +25,8 @@ import {
   updateExistingEntries,
   writeCatalogAtomic,
 } from './catalog.ts'
-import { fetchPiDevEntries, type PiDevFetchResult } from './pidev.ts'
+import { errorText, retry } from './errors.ts'
+import { fetchPiDevEntries, isRetryable, type PiDevFetchResult } from './pidev.ts'
 import { unsetModels, writeModels } from './settings.ts'
 import { translateEntry } from './translate.ts'
 import type {
@@ -47,6 +48,8 @@ export interface RoundDeps {
   dataDir?: string
   /** Override the fetch (tests). */
   fetchEntries?: (route: string, timeoutMs: number) => Promise<PiDevFetchResult>
+  /** Shorten the retry backoff (tests); production uses the default. */
+  retryBaseDelayMs?: number
 }
 
 /** Per-route outcome of one round. */
@@ -64,10 +67,6 @@ export interface RoundReport {
   routes: RouteOutcome[]
   restartNeeded: boolean
   text: string
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 /** Up to five ids, plus a count when there are more. */
@@ -138,7 +137,17 @@ export async function runRound(deps: RoundDeps, config: PluginConfig): Promise<R
       let entries: PiDevEntry[] = []
       let absent = false
       if (config.catalogSync || config.settingsMode === 'mirror') {
-        const fetched = await fetcher(route, config.refreshTimeoutMs)
+        // Bounded retry: a listing we could not read is a route we must not
+        // touch, so it is worth a few attempts before giving up on the route.
+        const fetched = await retry(() => fetcher(route, config.refreshTimeoutMs), {
+          attempts: config.fetchAttempts,
+          baseDelayMs: deps.retryBaseDelayMs,
+          shouldRetry: isRetryable,
+          onRetry: (error, attempt, delayMs) => deps.logger.debug(
+            'pi.dev/%s 第 %d 次尝试失败（%s），%dms 后重试',
+            route, attempt, errorText(error), delayMs,
+          ),
+        })
         entries = fetched.entries
         absent = fetched.absent
       }

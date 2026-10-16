@@ -129,6 +129,7 @@ pi-ai-sync:
 | `intervalMinutes` | `240` | Auto-refresh interval; `0` = startup only |
 | `startupDelaySeconds` | `5` | Delay before the first auto round |
 | `refreshTimeoutMs` | `120000` | Abort budget for one round's request |
+| `fetchAttempts` | `3` | Fetch attempts per route, with exponential backoff; `1` disables retrying |
 | `syncNotify` | `true` | Log the report when there was something to report |
 | `keepCatalogOnly` | `true` | In `mirror` mode, also write ids that exist only in the catalog |
 
@@ -246,6 +247,12 @@ A refreshed catalog needs the same restart as an added one, the report shows
   and a real uninstall restores it (a pi-ai upgrade that wholly replaces the
   file is left untouched). A pi-ai upgrade wipes the additions; the next round
   re-applies them.
+- **A round says why it gave up.** A failed fetch is retried `fetchAttempts`
+  times (default 3) with exponential backoff, then that route is skipped and the
+  report carries the whole cause chain — `fetch failed ← connect ETIMEDOUT
+  172.67.221.13:443` rather than a bare `fetch failed`. A 4xx other than 429 is
+  pi.dev answering, so it is not retried. Skipping is deliberate: **a route whose
+  listing could not be verified keeps its settings untouched.**
 - **Restart to see new models.** Catalog changes are read at boot only.
 - **Do not run this beside `dsh-model-sync` on the same routes.** One rewrites
   `models`, the other unsets it. Pick one.

@@ -15,6 +15,34 @@ import type { PiDevEntry } from './types.ts'
 /** The pi.dev gateway's per-route model listing. */
 export const PI_DEV_BASE = 'https://pi.dev/api/models/providers/'
 
+/**
+ * A non-ok pi.dev response, carrying the status so the retry policy can judge
+ * it. 404/501 never reach here — those are `absent`, not an error.
+ */
+export class PiDevHttpError extends Error {
+  readonly status: number
+
+  constructor(status: number, statusText: string) {
+    super(`pi.dev ${status}${statusText === '' ? '' : ` ${statusText}`}`)
+    this.name = 'PiDevHttpError'
+    this.status = status
+  }
+}
+
+/**
+ * Whether another attempt could plausibly succeed.
+ *
+ * A 5xx or 429 is pi.dev (or the proxy in front of it) having a moment; any
+ * other 4xx is pi.dev answering, and retrying cannot change an answer. Every
+ * non-HTTP failure — DNS, connect, TLS, an aborted request, a gateway that
+ * returned an error page instead of JSON — is treated as transient, because
+ * those are the shapes a flaky network takes here.
+ */
+export function isRetryable(error: unknown): boolean {
+  if (error instanceof PiDevHttpError) return error.status >= 500 || error.status === 429
+  return true
+}
+
 /** Outcome of one route's fetch. `absent` marks a 404/501: pi.dev does not know the route. */
 export interface PiDevFetchResult {
   entries: PiDevEntry[]
@@ -66,7 +94,7 @@ export async function fetchPiDevEntries(
     return { entries: [], absent: true }
   }
   if (!response.ok) {
-    throw new Error(`pi.dev ${response.status} ${response.statusText}`)
+    throw new PiDevHttpError(response.status, response.statusText)
   }
   const data: unknown = await response.json()
   if (!looksLikeListing(data)) {

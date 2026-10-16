@@ -1,6 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizePiDevEntries, fetchPiDevEntries, PI_DEV_BASE, } from '../lib/pidev.js'
+import {
+  normalizePiDevEntries,
+  fetchPiDevEntries,
+  isRetryable,
+  PiDevHttpError,
+  PI_DEV_BASE,
+} from '../lib/pidev.js'
 
 test('normalizePiDevEntries accepts an id-keyed object', () => {
   const entries = normalizePiDevEntries({
@@ -48,4 +54,32 @@ test('fetchPiDevEntries parses a 200 listing', async () => {
 test('fetchPiDevEntries throws on a server error', async () => {
   const fakeFetch = async () => new Response('boom', { status: 500, statusText: 'Server Error' })
   await assert.rejects(() => fetchPiDevEntries('opencode', 1000, fakeFetch), /500/)
+})
+
+test('fetchPiDevEntries carries the status on a non-ok response', async () => {
+  const fakeFetch = async () => new Response('nope', { status: 403, statusText: 'Forbidden' })
+  const error = await fetchPiDevEntries('opencode', 1000, fakeFetch).then(
+    () => undefined,
+    (caught) => caught,
+  )
+  assert.ok(error instanceof PiDevHttpError)
+  assert.equal(error.status, 403)
+  assert.equal(error.name, 'PiDevHttpError')
+  assert.equal(error.message, 'pi.dev 403 Forbidden')
+})
+
+test('isRetryable separates a glitch from an answer', () => {
+  // transient: pi.dev or the proxy in front of it having a moment
+  for (const status of [500, 502, 503, 429]) {
+    assert.equal(isRetryable(new PiDevHttpError(status, 'x')), true, `status ${status}`)
+  }
+  // an answer: retrying cannot change it
+  for (const status of [400, 401, 403, 418]) {
+    assert.equal(isRetryable(new PiDevHttpError(status, 'x')), false, `status ${status}`)
+  }
+  // every non-HTTP failure is the shape a flaky network takes here
+  assert.equal(isRetryable(new TypeError('fetch failed')), true)
+  assert.equal(isRetryable(Object.assign(new Error('aborted'), { name: 'TimeoutError' })), true)
+  assert.equal(isRetryable(new SyntaxError('Unexpected token <')), true)
+  assert.equal(isRetryable(new Error('pi.dev 返回了非对象响应')), true)
 })

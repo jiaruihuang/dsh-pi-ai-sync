@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { runRound } from '../lib/sync.js'
 import { readBackup, readCatalog } from '../lib/catalog.js'
+import { PiDevHttpError } from '../lib/pidev.js'
 
 const logger = { info() {}, warn() {}, debug() {} }
 
@@ -16,6 +17,7 @@ function baseConfig(overrides = {}) {
     intervalMinutes: 240,
     startupDelaySeconds: 5,
     refreshTimeoutMs: 1000,
+    fetchAttempts: 1,
     syncNotify: true,
     keepCatalogOnly: true,
     ...overrides,
@@ -163,4 +165,76 @@ test('updateExistingModels refreshes stale records, and only when enabled', asyn
   const backup = await readBackup(path.join(on, 'opencode.json'))
   assert.ok(backup !== undefined)
   assert.equal(backup.original['openai-completions'].known.contextWindow, 8192)
+})
+
+test('a round retries a transient fetch failure before giving up on the route', async () => {
+  const dataDir = await tempDataDir({ 'openai-completions': { old: { id: 'old', api: 'openai-completions' } } })
+  const settings = fakeSettings({ opencode: { models: [{ id: 'old' }] } })
+  let calls = 0
+  const report = await runRound({
+    logger,
+    settings,
+    dataDir,
+    retryBaseDelayMs: 0,
+    fetchEntries: async () => {
+      calls += 1
+      if (calls < 3) {
+        const failure = new TypeError('fetch failed')
+        failure.cause = new Error('connect ETIMEDOUT 172.67.221.13:443')
+        throw failure
+      }
+      return { absent: false, entries: [{ id: 'new', api: 'anthropic-messages', contextWindow: 2000 }] }
+    },
+  }, baseConfig({ fetchAttempts: 3 }))
+
+  assert.equal(calls, 3)
+  assert.deepEqual(report.routes[0].catalogAdded, ['new'])
+  assert.equal(report.routes[0].error, undefined)
+  assert.equal(report.routes[0].settings, 'unset')
+})
+
+test('a route whose fetch never succeeds is skipped, with its cause, settings untouched', async () => {
+  const dataDir = await tempDataDir({ 'openai-completions': { old: { id: 'old', api: 'openai-completions' } } })
+  const settings = fakeSettings({ opencode: { models: [{ id: 'old' }] } })
+  let calls = 0
+  const report = await runRound({
+    logger,
+    settings,
+    dataDir,
+    retryBaseDelayMs: 0,
+    fetchEntries: async () => {
+      calls += 1
+      const failure = new TypeError('fetch failed')
+      failure.cause = new Error('connect ETIMEDOUT 172.67.221.13:443')
+      throw failure
+    },
+  }, baseConfig({ fetchAttempts: 3 }))
+
+  assert.equal(calls, 3)
+  // skipping is the point: never unset models for a route we could not verify
+  assert.equal('models' in settings.routes.opencode, true)
+  assert.equal(report.routes[0].settings, 'kept')
+  assert.deepEqual(report.routes[0].catalogAdded, [])
+  assert.equal(report.restartNeeded, false)
+  // and the report says which layer broke, not just "fetch failed"
+  assert.match(report.routes[0].error, /fetch failed ← connect ETIMEDOUT 172\.67\.221\.13:443/)
+  assert.match(report.text, /错误: .*connect ETIMEDOUT/)
+})
+
+test('a 4xx is an answer, not a glitch: it is not retried', async () => {
+  const dataDir = await tempDataDir(undefined)
+  let calls = 0
+  const report = await runRound({
+    logger,
+    settings: fakeSettings({ opencode: {} }),
+    dataDir,
+    retryBaseDelayMs: 0,
+    fetchEntries: async () => {
+      calls += 1
+      throw new PiDevHttpError(403, 'Forbidden')
+    },
+  }, baseConfig({ fetchAttempts: 3 }))
+
+  assert.equal(calls, 1)
+  assert.match(report.routes[0].error, /403/)
 })

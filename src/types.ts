@@ -100,6 +100,11 @@ export interface PluginConfig {
   startupDelaySeconds: number
   /** Abort budget for one round's network request. */
   refreshTimeoutMs: number
+  /**
+   * Total fetch attempts per route including the first (bounded retry with
+   * exponential backoff). `1` disables retrying.
+   */
+  fetchAttempts: number
   /** Log the report when there was something to report. */
   syncNotify: boolean
   /** In `mirror` mode, also write the ids that exist only in the catalog. */

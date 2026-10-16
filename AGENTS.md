@@ -83,6 +83,7 @@ Re-verify them when bumping the supported dsh line.
 ```
 src/
   types.ts      structural host interfaces (no dsh type deps) + config type
+  errors.ts     failure rendering (the `cause` chain) + the bounded retry policy
   pidev.ts      pi.dev fetch + normalization
   catalog.ts    pi-ai catalog discovery, merge, atomic write, backup/restore
   translate.ts  pi.dev record → settings model profile (mirror mode only)
@@ -179,10 +180,10 @@ fight over `models`). Disable the other plugin/layer first.
 
 ## Roadmap / known gaps
 
-### Verified on a real host, not yet fixed (2026-10-14)
+### Found on a real host (2026-10-14)
 
-Both found while debugging a real dsh profile; both are user-visible on a
-proxied network, which is how the development host reaches pi.dev.
+Both found while debugging a real dsh profile, on a proxied network, which is
+how the development host reaches pi.dev.
 
 - **`src/pidev.ts` ignores the proxy environment.** Node's global `fetch`
   (undici) does **not** honour `http_proxy` / `https_proxy` by default, so the
@@ -198,14 +199,18 @@ proxied network, which is how the development host reaches pi.dev.
   that currently has none, and the host flag is one line in a launcher.
   Revisit if a dependency ever becomes acceptable; until then a proxied host
   must set the flag itself.
-- **A round loses its failure cause and does not retry.** `errorText()` returns
-  `error.message` only, so every fetch failure is reported as `fetch failed` and
-  `error.cause` (the socket/TLS reason that identifies *which* layer broke) is
-  discarded. There is also no retry inside a round: one transient failure skips
-  that route's settings layer entirely. The skip itself is correct and must stay
-  (never unset `models` for a route whose listing could not be verified), but it
-  should be reported with its cause, and the fetch deserves a bounded
-  retry/backoff before the route is given up on.
+- **A round loses its failure cause and does not retry. FIXED.** `errorText`
+  now renders the whole `cause` chain (`fetch failed ← connect ETIMEDOUT
+  172.67.221.13:443`, AggregateError members capped at three), and the fetch is
+  retried `fetchAttempts` times (default 3) with exponential backoff (500 ms
+  base, 8 s ceiling) before the route is skipped. `isRetryable` retries 5xx/429
+  and every non-HTTP failure — a 4xx other than 429 is pi.dev answering, not a
+  glitch. **The skip itself is unchanged and must stay: never unset `models` for
+  a route whose listing could not be verified.** Two invariants from this work:
+  `retry` must rethrow the last error **unwrapped** so the caller keeps the
+  cause chain, and a missing/nonsensical attempt count must still run the
+  operation exactly once (a `NaN` count that ran zero times reported someone
+  else's error).
 
 ### Longer term
 

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `fetchAttempts` (default `3`): a failed fetch is retried with exponential
+  backoff before the route is given up on. A 4xx other than 429 is pi.dev
+  answering, so it is not retried.
+
+### Fixed
+
+- A round no longer reports every fetch failure as a bare `fetch failed`. The
+  whole `cause` chain is rendered (`fetch failed ← connect ETIMEDOUT
+  172.67.221.13:443`), which is what identifies the layer that broke — a
+  message-only rendering throws away the only useful part of a Node network
+  error, whose `cause` is usually an `AggregateError` with one entry per
+  resolved address.
+- The auto-round and uninstall warnings log the same cause chain instead of
+  `%o`-dumping the error object.
+
 ## [0.3.0] - 2026-10-16
 
 ### Added

@@ -15,6 +15,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { errorText } from './errors.ts'
 import { pluginStillReferenced, restoreAllCatalogs } from './restore.ts'
 import { DEFAULT_ROUTES, runRound } from './sync.ts'
 import type { Logger, PluginConfig } from './types.ts'
@@ -47,6 +48,12 @@ export const Config = z.object({
   startupDelaySeconds: z.number().step(1).min(0).default(5),
   /** Abort budget for one round's network request. */
   refreshTimeoutMs: z.number().step(1).min(1000).default(120000),
+  /**
+   * Fetch attempts per route including the first. Transient failures are
+   * retried with exponential backoff; a 4xx other than 429 is an answer and is
+   * not retried. `1` disables retrying.
+   */
+  fetchAttempts: z.number().step(1).min(1).max(10).default(3),
   /** Log the report when there was something to report. */
   syncNotify: z.boolean().default(true),
   /**
@@ -99,7 +106,7 @@ export function apply(ctx: Context): void {
       (text) => {
         if (scope.get().syncNotify) logger.info('pi-ai-sync:\n%s', text)
       },
-      (error: unknown) => logger.warn('pi-ai-sync 自动同步失败: %o', error),
+      (error: unknown) => logger.warn('pi-ai-sync 自动同步失败: %s', errorText(error)),
     )
   }
 
@@ -153,7 +160,7 @@ export function apply(ctx: Context): void {
     try {
       if (!(await pluginStillReferenced())) await restoreAllCatalogs()
     } catch (error) {
-      logger.warn('dsh-pi-ai-sync 卸载还原失败: %o', error)
+      logger.warn('dsh-pi-ai-sync 卸载还原失败: %s', errorText(error))
     }
   })
 }
