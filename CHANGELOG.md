@@ -7,28 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-16
+
 ### Added
 
 - `updateExistingModels` (default `false`): the round also **refreshes records
-the catalog already has** with the fields pi.dev states today. Only pi.dev's
-own fields are applied — a `cost` or capacity it stays silent about keeps the
-catalog's value, so nothing is zeroed by omission — and a record pi.dev has
-moved to another protocol is re-grouped under the new `api`. Records are still
-never removed, and a refresh writes the usual backup and needs the usual
-restart (reported as `catalog ↻N（…）`). It is off by default because the
-add-only merge is what stops a partial pi.dev listing from rewriting your
-models. Measured on a real profile: `opencode` 65 records refreshed with no
-protocol moves, `opencode-go` 31 including **7 protocol corrections** (e.g.
-`claude-haiku-5-5` was stored as `openai-completions` while pi.dev says
-`anthropic-messages`), and `step-5-preview-free`'s 8k context corrected to 1M.
+  the catalog already has** with the fields pi.dev states today. Only pi.dev's
+  own fields are applied — a `cost` or capacity it stays silent about keeps the
+  catalog's value, so nothing is zeroed by omission — and a record pi.dev has
+  moved to another protocol is re-grouped under the new `api`. Records are
+  still never removed, and a refresh writes the usual backup and needs the
+  usual restart (reported as `catalog ↻N（…）`). It is off by default because
+  the add-only merge is what stops a partial pi.dev listing from rewriting your
+  models.
+
+  Measured on a real profile (`opencode` / `opencode-go`): 65 records refreshed
+  with no protocol moves, then 31 including **7 protocol corrections** — e.g.
+  `claude-haiku-5-5` had been stored as `openai-completions` while pi.dev says
+  `anthropic-messages` — and `step-5-preview-free`'s 8k context corrected to 1M
+  with `maxTokens` 4096 → 65536. A second pass reports no further changes.
 
 ### Changed
 
-- Docs: the README now covers three host facts that decided real debugging
-  sessions — the stable pnpm `allowBuilds` key an install needs, that Node's
-  global `fetch` ignores `http_proxy` (run dsh with `NODE_USE_ENV_PROXY=1` on a
-  proxied host), and that `zen` / `inference` are two names for one opencode
-  backend (`AGENTS.md` records the measurements).
+- Docs: the READMEs cover three host facts that each decided a real debugging
+  session — the stable pnpm `allowBuilds` key a `github:` install needs, that
+  Node's global `fetch` ignores `http_proxy` (run dsh with
+  `NODE_USE_ENV_PROXY=1` on a proxied host), and that `zen` / `inference` are
+  two names for one opencode backend. `AGENTS.md` records the measurements, the
+  `models`-replaces-catalog rule, and why the proxy stays a host setting.
 
 ## [0.2.0] - 2026-10-15
 
@@ -80,6 +86,7 @@ protocol moves, `opencode-go` 31 including **7 protocol corrections** (e.g.
   `dsh-pi-ai-sync@git+https://github.com/jiaruihuang/dsh-pi-ai-sync.git`
   survives later pushes, the commit-pinned codeload key does not.
 
-[Unreleased]: https://github.com/jiaruihuang/dsh-pi-ai-sync/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jiaruihuang/dsh-pi-ai-sync/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jiaruihuang/dsh-pi-ai-sync/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jiaruihuang/dsh-pi-ai-sync/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jiaruihuang/dsh-pi-ai-sync/releases/tag/v0.1.0
