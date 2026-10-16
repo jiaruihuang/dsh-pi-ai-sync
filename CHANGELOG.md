@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-16
+
 ### Added
 
 - `fetchAttempts` (default `3`): a failed fetch is retried with exponential
@@ -103,7 +105,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dsh-pi-ai-sync@git+https://github.com/jiaruihuang/dsh-pi-ai-sync.git`
   survives later pushes, the commit-pinned codeload key does not.
 
-[Unreleased]: https://github.com/jiaruihuang/dsh-pi-ai-sync/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/jiaruihuang/dsh-pi-ai-sync/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/jiaruihuang/dsh-pi-ai-sync/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jiaruihuang/dsh-pi-ai-sync/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jiaruihuang/dsh-pi-ai-sync/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jiaruihuang/dsh-pi-ai-sync/releases/tag/v0.1.0

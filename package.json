@@ -1,6 +1,6 @@
 {
   "name": "dsh-pi-ai-sync",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "dsh plugin: fuse dsh-model-sync (settings seam) and dsh-opencode-go-models (pi-ai catalog file) so provider routes stay in step with the pi.dev gateway — and new models become selectable without hand-editing node_modules.",
   "type": "module",
   "main": "lib/index.js",
